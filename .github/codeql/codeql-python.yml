@@ -1,0 +1,6 @@
+name: mcp-toolkit-py-codeql-python
+
+queries:
+  - uses: security-and-quality
+
+threat-models: [local]

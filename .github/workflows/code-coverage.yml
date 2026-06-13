@@ -1,0 +1,84 @@
+name: code-coverage
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code-coverage::${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-coverage:
+    name: Python Cobertura coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      code-quality: write
+      pull-requests: read
+    steps:
+      - name: Checkout repository
+        # actions/checkout v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,security]" coverage[toml]
+
+      - name: Generate Python coverage
+        run: |
+          mkdir -p coverage
+          python -m coverage run -m pytest -q
+          python -m coverage xml -o coverage/python.xml
+
+      - name: Upload Python coverage to GitHub Code Quality
+        # actions/upload-code-coverage v1
+        uses: actions/upload-code-coverage@abb5995db9e0199b0e2bb9dbd136fce4cb1ec4d3
+        with:
+          file: coverage/python.xml
+          language: Python
+          label: code-coverage/python
+
+      - name: Upload Cobertura report
+        # actions/upload-artifact v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: python-cobertura-coverage
+          path: coverage/python.xml
+          if-no-files-found: error
+
+      - name: Summarize coverage report
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "### Python coverage report" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          for report in sorted(Path("coverage").glob("*.xml")):
+              root = ElementTree.parse(report).getroot()
+              line_rate = float(root.attrib.get("line-rate", "0"))
+              print(f"- `{report}`: {line_rate * 100:.2f}% line coverage")
+          PY
