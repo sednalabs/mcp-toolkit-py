@@ -122,7 +122,8 @@ class LogSession(Protocol):
         data: Mapping[str, Any],
         logger: str | None = None,
         related_request_id: str | None = None,
-    ) -> None: ...
+    ) -> None:
+        pass
 
 
 def _normalize_level(value: str) -> McpLoggingLevel:
